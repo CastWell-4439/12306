@@ -10,7 +10,7 @@ def main() -> None:
     parser.add_argument("--output", default="tools/data/stations_seed.sql")
     args = parser.parse_args()
 
-    stations = json.loads(Path(args.input).read_text(encoding="utf-8"))
+    stations = json.loads(Path(args.input).read_text(encoding="utf-8-sig"))
     lines = [
         "CREATE TABLE IF NOT EXISTS stations (",
         "  station_code VARCHAR(16) PRIMARY KEY,",
