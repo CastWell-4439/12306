@@ -1,224 +1,209 @@
+# 12306 售票系统
 
+基于微服务架构的高并发火车票售票系统，涵盖下单、库存锁定、支付、出票全流程。
 
-## 项目入口
+## 项目结构
 
-- 原版工程（Gin）：`ticketing/`
-- go-zero 版工程：`ticketing(go-zero)/`
-- 前端控制台：`frontend/`
-- 执行规范：`CURSOR_PROMPT_CLEAN_ARCH_v3.md`
-- API 文档：`ticketing/docs/openapi/*.yaml`
+```
+12306/
+├── ticketing/              # 后端微服务（Go，Gin 版）
+├── ticketing(go-zero)/     # 后端微服务（Go，go-zero 版）
+├── frontend/               # 前端控制台（Vue 3 + TypeScript）
+└── China-rail-way-stations-data-main/  # 车站基础数据
+```
 
-## Stage 进度
+## 技术栈
 
-- [x] Stage 1 - Infrastructure Core
-- [x] Stage 2 - Inventory Service Core
-- [x] Stage 2.5 - Inventory Recoverability (WAL + Snapshot)
-- [x] Stage 3 - Order Service
-- [x] Stage 4 - Ticket Worker
-- [x] Stage 5 - C++ Seat Allocator
-- [x] Stage 6 - Query Service
-- [x] Stage 7 - Python + Shell Tooling
-- [x] Stage 8 - go-zero 框架迁移
-
-## go-zero 迁移说明
-
-
-| 维度 | 说明 |
+| 层级 | 技术 |
 |------|------|
-| 目录 | `ticketing(go-zero)/` — 与原项目并行，不删除旧代码 |
-| 骨架生成 | `goctl api go` 从 `spec/api/*.api` 生成 handler/logic/types |
-| 核心逻辑 | `pkg/core/` — 从原 `internal/` 迁出，业务代码零改动 |
-| 基础设施 | `pkg/infra/` — kafka/mysql/redis/仓储层 |
-| HTTP 路径 | 与原项目 100% 一致，前端无感 |
-| 内置能力 | Timeout / MaxConns / Prometheus / Telemetry 通过 yaml 一行启用 |
-| 日志 | Logic 层内嵌 `logx.Logger`，自动携带 traceId |
-| 测试 | 4 个核心测试套件全部通过（partition / order / query / ticket） |
+| 后端框架 | Gin（原版）/ go-zero（新版，goctl 生成骨架） |
+| 数据库 | MySQL 8.0 |
+| 缓存 | Redis 7 |
+| 消息队列 | Apache Kafka (KRaft) |
+| 座位分配 | C++ gRPC 服务（seat-allocator） |
+| 前端 | Vue 3 + Vite + TypeScript |
+| 监控 | Prometheus + Grafana |
+| 容器化 | Docker Compose 一键部署 |
 
-### go-zero 服务清单
+## 服务清单
 
-| 服务 | 入口 | 端口 | .api 定义 |
-|------|------|------|-----------|
-| gateway-api | `apps/gateway-api/gateway.go` | 8080 | `spec/api/gateway.api` |
-| order-api | `apps/order-api/order.go` | 8081 | `spec/api/order.api` |
-| inventory-api | `apps/inventory-api/inventory.go` | 8082 | `spec/api/inventory.api` |
-| query-api | `apps/query-api/query.go` | 8083 | `spec/api/query.api` |
-| ticket-worker | `apps/ticket-worker/worker.go` | 8084 | — (后台 Worker) |
+| 服务 | 端口 | 职责 |
+|------|------|------|
+| gateway | 8080 | API 网关、健康检查 |
+| order-service | 8081 | 订单创建、预留、支付回调、取消 |
+| inventory-service | 8082 | 库存锁定（WAL + Snapshot 恢复）、TTL 自动释放 |
+| query-service | 8083 | 订单查询读模型（CQRS） |
+| ticket-worker | 8084 | 消费 OrderPaid 事件 → 分配座位 → 出票 |
+| seat-allocator | 50051 | C++ gRPC 座位分配（可选，默认 mock） |
+| frontend | 5173 | Web 控制台 |
+| prometheus | 9090 | 指标采集 |
+| grafana | 3000 | 监控面板（默认 admin/admin） |
 
-### go-zero 版快速验证
+## 快速启动
+
+两套后端共享同一数据库和 Kafka，端口完全一致，**任选其一启动**即可。
+
+### Gin 版（原版）
+
+```bash
+cd ticketing
+docker compose up -d --build     # 一键启动全部
+```
+
+或使用 make / just：
+
+```bash
+cd ticketing
+make up          # 启动
+make ps          # 查看状态
+make logs        # 查看日志
+make health      # 打印健康检查地址
+make down        # 停止
+make clean       # 停止并清除数据卷
+```
+
+```bash
+cd ticketing
+just up / just ps / just logs / just down / just clean
+```
+
+### go-zero 版
 
 ```bash
 cd "ticketing(go-zero)"
-go build ./...
+docker compose up -d --build     # 一键启动全部
+```
+
+或使用 make / just：
+
+```bash
+cd "ticketing(go-zero)"
+make up          # 启动
+make ps          # 查看状态
+make logs        # 查看日志
+make health      # 打印健康检查地址
+make gen         # goctl 重新生成骨架代码
+make down        # 停止
+make clean       # 停止并清除数据卷
+```
+
+```bash
+cd "ticketing(go-zero)"
+just up / just ps / just logs / just gen / just down / just clean
+```
+
+### 验证服务
+
+```bash
+curl http://127.0.0.1:8080/healthz
+curl http://127.0.0.1:8081/healthz
+curl http://127.0.0.1:8082/healthz
+curl http://127.0.0.1:8083/healthz
+curl http://127.0.0.1:8084/healthz
+```
+
+打开浏览器访问：
+
+- 前端控制台：http://127.0.0.1:5173
+- Grafana 面板：http://127.0.0.1:3000
+
+### 停止
+
+```bash
+docker compose down            # 保留数据卷
+docker compose down -v         # 连数据卷一起清除
+```
+
+## API 文档
+
+OpenAPI 3.0 规范位于 `ticketing/docs/openapi/`：
+
+| 文件 | 对应服务 |
+|------|----------|
+| `order-service.openapi.yaml` | 订单：创建 / 预留 / 支付 / 取消 / 查询 |
+| `inventory-service.openapi.yaml` | 库存：try-hold / release / confirm / availability |
+| `query-service.openapi.yaml` | 查询：订单读模型 |
+| `gateway.openapi.yaml` | 网关：healthz / readyz |
+| `ticket-worker.openapi.yaml` | 出票 Worker：healthz / readyz |
+
+可使用 [Swagger Editor](https://editor.swagger.io) 导入查看。
+
+## 核心业务流程
+
+```
+用户下单 → 创建订单(INIT)
+       → 预留库存(RESERVED) ── 失败回滚释放
+       → 支付回调(PAID) ── 确认库存扣减
+       → 出票(TICKETED) ── seat-allocator 分配座位
+       → 查询服务异步更新读模型
+```
+
+关键设计：
+
+- **Outbox 模式**：订单状态变更通过 outbox 表可靠投递到 Kafka
+- **WAL + Snapshot**：库存服务基于 Write-Ahead Log 保证崩溃恢复
+- **TTL 自动释放**：预留超时后 Redis delay queue 自动释放库存
+- **幂等性**：所有写接口均支持幂等重试
+
+## 两套后端对比
+
+| | Gin 版 (`ticketing/`) | go-zero 版 (`ticketing(go-zero)/`) |
+|---|---|---|
+| 框架 | Gin + 手写路由 | go-zero + goctl 生成骨架 |
+| 内置能力 | 手动实现 | 超时/限流/Prometheus/链路追踪 yaml 配置即启用 |
+| 日志 | slog | logx（自动携带 traceId） |
+| 一键部署 | `make up` | `make up` |
+| 代码生成 | — | `make gen`（goctl 从 .api 重新生成） |
+| 本地编译 | `go build ./...` | `make build` |
+| 单元测试 | `go test ./...` | `make test` |
+
+## 本地开发
+
+### 后端（需要本地基础设施）
+
+```bash
+# Gin 版
+cd ticketing
+docker compose up -d mysql redis kafka   # 只启动依赖
+go run cmd/order-service/main.go         # 启动单个服务
 go test ./...
+
+# go-zero 版
+cd "ticketing(go-zero)"
+docker compose up -d mysql redis kafka   # 只启动依赖
+go run apps/order-api/order.go           # 启动单个服务
+make test
 ```
 
-## Swagger / OpenAPI
+### 前端
 
-- `ticketing/docs/openapi/order-service.openapi.yaml`
-- `ticketing/docs/openapi/inventory-service.openapi.yaml`
-- `ticketing/docs/openapi/query-service.openapi.yaml`
-- `ticketing/docs/openapi/ticket-worker.openapi.yaml`
-- `ticketing/docs/openapi/gateway.openapi.yaml`
-- 说明：`ticketing/docs/openapi/README.md`
+```bash
+cd frontend
+npm install
+npm run dev
+```
 
-## 部署（原版 Gin）
-
-### 前置条件
-
-- 已安装 Docker Engine（建议 24+）
-- 已安装 Docker Compose 插件（`docker compose` 可用）
-- 服务器能访问 Docker Hub（首次会拉镜像）
-
-### 1) 启动
+### 端到端验证
 
 ```bash
 cd ticketing
-docker compose up -d --build
+python tools/e2e_order_inventory.py              # 全流程闭环测试
+python tools/failure_drill_ticket_outbox.py       # 故障恢复演练
 ```
 
-这条命令会自动完成：
+## 监控
 
-- 基础依赖启动（MySQL/Redis/Kafka）
-- 初始化任务执行（`migrate` / `topics-init` / `seed`）
-- 业务服务启动（gateway/order/inventory/query/ticket-worker）
-- 监控组件启动（Prometheus/Grafana）
-- 前端控制台启动（frontend，容器化部署）
+每个服务暴露 `GET /metrics`，Prometheus 自动抓取。
 
-### 2) 检查容器状态
+内置指标：`http_requests_total` / `http_request_duration_seconds` / `http_in_flight_requests`
+
+配置文件：`ticketing/deployments/observability/prometheus.yml`
+
+## 排障
 
 ```bash
-cd ticketing
-docker compose ps
+docker compose ps                                                        # 容器状态
+docker compose logs migrate topics-init                                  # 初始化日志
+docker compose logs -f order-service inventory-service query-service     # 服务日志（Gin 版）
+docker compose logs -f order-api inventory-api query-api                 # 服务日志（go-zero 版）
 ```
-
-### 3) 查看初始化任务日志
-
-```bash
-cd ticketing
-docker compose logs migrate topics-init seed
-```
-
-### 4) （可选）在"只有 Docker"的机器上做健康检查
-
-如果服务器没有 `curl`，可以用临时 curl 容器验证：
-
-```bash
-docker run --rm --network host curlimages/curl:8.9.1 http://127.0.0.1:8080/healthz
-docker run --rm --network host curlimages/curl:8.9.1 http://127.0.0.1:8081/healthz
-docker run --rm --network host curlimages/curl:8.9.1 http://127.0.0.1:8082/healthz
-docker run --rm --network host curlimages/curl:8.9.1 http://127.0.0.1:8083/healthz
-docker run --rm --network host curlimages/curl:8.9.1 http://127.0.0.1:8084/healthz
-```
-
-> 若你的环境不支持 `--network host`，可改用宿主机自带工具或从外部机器访问开放端口。
-
-### 5) 停止与清理
-
-```bash
-cd ticketing
-docker compose down
-```
-
-如需连数据卷一起清理：
-
-```bash
-cd ticketing
-docker compose down -v --remove-orphans
-```
-
-## 快速启动（通用）
-
-```bash
-cd ticketing
-docker compose up -d --build
-```
-
-说明：`migrate/topics-init/seed` 会作为初始化任务自动执行。
-
-## 统一命令入口（可选）
-
-- `ticketing/Makefile`：适合 Linux/macOS（需要 `make`）
-- `ticketing/justfile`：适合 Windows/Linux（需要 `just`）
-
-示例：
-
-```bash
-cd ticketing
-make up
-make ps
-make logs
-```
-
-```bash
-cd ticketing
-just up
-just ps
-just logs
-```
-
-## 关键验证命令
-
-```bash
-cd ticketing
-go test ./...
-```
-
-```bash
-cd ticketing
-python tools/e2e_order_inventory.py
-```
-
-```bash
-cd ticketing
-python tools/failure_drill_ticket_outbox.py
-```
-
-说明：
-
-- `e2e_order_inventory.py`：验证下单 -> 预留占座 -> 支付回调 -> 订单终态闭环。
-- `failure_drill_ticket_outbox.py`：验证 Kafka 故障下 `ticket_outbox` 堆积与恢复补发。
-
-## 常用访问地址
-
-- Gateway health: `http://127.0.0.1:8080/healthz`
-- Order service: `http://127.0.0.1:8081`
-- Inventory service: `http://127.0.0.1:8082`
-- Query service: `http://127.0.0.1:8083`
-- Ticket worker health: `http://127.0.0.1:8084/healthz`
-- OpenResty gateway: `http://127.0.0.1:8088/healthz`
-- Frontend: `http://127.0.0.1:5173`
-- Prometheus: `http://127.0.0.1:9090`
-- Grafana: `http://127.0.0.1:3000`（默认 `admin/admin`）
-
-## 监控（Prometheus + Grafana）
-
-- 每个 Go 服务已暴露 `GET /metrics`：
-  - `gateway:8080/metrics`
-  - `order-service:8081/metrics`
-  - `inventory-service:8082/metrics`
-  - `query-service:8083/metrics`
-  - `ticket-worker:8084/metrics`
-- 内置 Prometheus 抓取配置：`ticketing/deployments/observability/prometheus.yml`
-- 指标包含：
-  - `http_requests_total`
-  - `http_request_duration_seconds`
-  - `http_in_flight_requests`
-- go-zero 版额外暴露独立 Prometheus 端口（9080–9084），通过 yaml `Prometheus` 配置启用
-
-## 前端控制台
-
-- 路径：`frontend/`
-- 作用：对接当前后端 API（健康检查、订单、库存、查询）
-- 服务端部署（仅 Docker）：
-  - 随 `docker compose up -d --build` 自动启动
-  - 访问 `http://127.0.0.1:5173`
-- 本地开发模式（可选）：
-  - `cd frontend`
-  - `npm install`
-  - `npm run dev`
-
-## 排障建议
-
-- 查看所有容器状态：`docker compose ps`
-- 查看初始化任务日志：`docker compose logs migrate topics-init seed`
-- 查看服务日志：`docker compose logs -f order-service inventory-service query-service ticket-worker`

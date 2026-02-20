@@ -1,0 +1,195 @@
+version: "3.9"
+
+services:
+  # ======================== 基础依赖 ========================
+  mysql:
+    image: mysql:8.4
+    container_name: gozero-mysql
+    command: ["--default-authentication-plugin=mysql_native_password"]
+    environment:
+      MYSQL_ROOT_PASSWORD: root
+      MYSQL_DATABASE: ticketing
+    ports:
+      - "3306:3306"
+    volumes:
+      - mysql_data:/var/lib/mysql
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-proot"]
+      interval: 10s
+      timeout: 5s
+      retries: 15
+
+  redis:
+    image: redis:7.2
+    container_name: gozero-redis
+    ports:
+      - "6379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 3s
+      retries: 15
+
+  kafka:
+    image: bitnami/kafka:3.7
+    container_name: gozero-kafka
+    environment:
+      KAFKA_CFG_NODE_ID: 0
+      KAFKA_CFG_PROCESS_ROLES: controller,broker
+      KAFKA_CFG_CONTROLLER_QUORUM_VOTERS: 0@kafka:9093
+      KAFKA_CFG_LISTENERS: PLAINTEXT://:9092,CONTROLLER://:9093,EXTERNAL://:9094
+      KAFKA_CFG_ADVERTISED_LISTENERS: PLAINTEXT://kafka:9092,EXTERNAL://127.0.0.1:9094
+      KAFKA_CFG_LISTENER_SECURITY_PROTOCOL_MAP: PLAINTEXT:PLAINTEXT,CONTROLLER:PLAINTEXT,EXTERNAL:PLAINTEXT
+      KAFKA_CFG_CONTROLLER_LISTENER_NAMES: CONTROLLER
+      KAFKA_CFG_INTER_BROKER_LISTENER_NAME: PLAINTEXT
+      KAFKA_CFG_AUTO_CREATE_TOPICS_ENABLE: "true"
+    ports:
+      - "9094:9094"
+    healthcheck:
+      test: ["CMD-SHELL", "kafka-topics.sh --bootstrap-server localhost:9092 --list || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 15
+
+  # ======================== 初始化任务 ========================
+  migrate:
+    image: mysql:8.4
+    container_name: gozero-migrate
+    depends_on:
+      mysql: { condition: service_healthy }
+    volumes:
+      - ../ticketing/migrations:/migrations:ro
+    entrypoint: ["/bin/sh", "-lc"]
+    command: >
+      "mysql -hmysql -uroot -proot ticketing < /migrations/0001_init.sql &&
+       mysql -hmysql -uroot -proot ticketing < /migrations/0002_query_readmodel.sql &&
+       mysql -hmysql -uroot -proot ticketing < /migrations/0003_ticket_outbox.sql"
+    restart: "no"
+
+  topics-init:
+    image: bitnami/kafka:3.7
+    container_name: gozero-topics-init
+    depends_on:
+      kafka: { condition: service_healthy }
+    entrypoint: ["/bin/sh", "-lc"]
+    command: >
+      "kafka-topics.sh --bootstrap-server kafka:9092 --create --if-not-exists --topic order.events --partitions 3 --replication-factor 1 &&
+       kafka-topics.sh --bootstrap-server kafka:9092 --create --if-not-exists --topic inventory.events --partitions 3 --replication-factor 1 &&
+       kafka-topics.sh --bootstrap-server kafka:9092 --create --if-not-exists --topic ticket.events --partitions 3 --replication-factor 1"
+    restart: "no"
+
+  # ======================== 业务服务 ========================
+  gateway-api:
+    build:
+      context: .
+      dockerfile: deploy/Dockerfile.gozero
+      args:
+        APP_PATH: apps/gateway-api
+        APP_NAME: gateway
+    container_name: gozero-gateway-api
+    entrypoint: ["/usr/local/bin/service", "-f", "/app/etc/gateway-api.yaml"]
+    environment:
+      - MYSQL_DSN=root:root@tcp(mysql:3306)/ticketing?parseTime=true
+      - REDIS_ADDR=redis:6379
+      - KAFKA_BROKERS=kafka:9092
+    depends_on:
+      mysql: { condition: service_healthy }
+      redis: { condition: service_healthy }
+      kafka: { condition: service_healthy }
+      migrate: { condition: service_completed_successfully }
+      topics-init: { condition: service_completed_successfully }
+    ports:
+      - "8080:8080"
+
+  order-api:
+    build:
+      context: .
+      dockerfile: deploy/Dockerfile.gozero
+      args:
+        APP_PATH: apps/order-api
+        APP_NAME: order
+    container_name: gozero-order-api
+    entrypoint: ["/usr/local/bin/service", "-f", "/app/etc/order-api.yaml"]
+    environment:
+      - MYSQL_DSN=root:root@tcp(mysql:3306)/ticketing?parseTime=true
+      - REDIS_ADDR=redis:6379
+      - KAFKA_BROKERS=kafka:9092
+      - INVENTORY_SERVICE_URL=http://inventory-api:8082
+    depends_on:
+      mysql: { condition: service_healthy }
+      redis: { condition: service_healthy }
+      kafka: { condition: service_healthy }
+      migrate: { condition: service_completed_successfully }
+      topics-init: { condition: service_completed_successfully }
+    ports:
+      - "8081:8081"
+
+  inventory-api:
+    build:
+      context: .
+      dockerfile: deploy/Dockerfile.gozero
+      args:
+        APP_PATH: apps/inventory-api
+        APP_NAME: inventory
+    container_name: gozero-inventory-api
+    entrypoint: ["/usr/local/bin/service", "-f", "/app/etc/inventory-api.yaml"]
+    environment:
+      - MYSQL_DSN=root:root@tcp(mysql:3306)/ticketing?parseTime=true
+      - REDIS_ADDR=redis:6379
+      - KAFKA_BROKERS=kafka:9092
+    depends_on:
+      mysql: { condition: service_healthy }
+      redis: { condition: service_healthy }
+      kafka: { condition: service_healthy }
+      migrate: { condition: service_completed_successfully }
+      topics-init: { condition: service_completed_successfully }
+    ports:
+      - "8082:8082"
+
+  query-api:
+    build:
+      context: .
+      dockerfile: deploy/Dockerfile.gozero
+      args:
+        APP_PATH: apps/query-api
+        APP_NAME: query
+    container_name: gozero-query-api
+    entrypoint: ["/usr/local/bin/service", "-f", "/app/etc/query-api.yaml"]
+    environment:
+      - MYSQL_DSN=root:root@tcp(mysql:3306)/ticketing?parseTime=true
+      - REDIS_ADDR=redis:6379
+      - KAFKA_BROKERS=kafka:9092
+    depends_on:
+      mysql: { condition: service_healthy }
+      redis: { condition: service_healthy }
+      kafka: { condition: service_healthy }
+      migrate: { condition: service_completed_successfully }
+      topics-init: { condition: service_completed_successfully }
+    ports:
+      - "8083:8083"
+
+  ticket-worker:
+    build:
+      context: .
+      dockerfile: deploy/Dockerfile.gozero
+      args:
+        APP_PATH: apps/ticket-worker
+        APP_NAME: worker
+    container_name: gozero-ticket-worker
+    entrypoint: ["/usr/local/bin/service", "-f", "/app/etc/ticket-worker.yaml"]
+    environment:
+      - MYSQL_DSN=root:root@tcp(mysql:3306)/ticketing?parseTime=true
+      - REDIS_ADDR=redis:6379
+      - KAFKA_BROKERS=kafka:9092
+    depends_on:
+      mysql: { condition: service_healthy }
+      redis: { condition: service_healthy }
+      kafka: { condition: service_healthy }
+      migrate: { condition: service_completed_successfully }
+      topics-init: { condition: service_completed_successfully }
+    ports:
+      - "8084:8084"
+
+volumes:
+  mysql_data:
+
