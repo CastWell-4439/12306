@@ -19,10 +19,11 @@ services:
     volumes:
       - mysql_data:/var/lib/mysql
     healthcheck:
-      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-proot"]
+      test: ["CMD-SHELL", "mysqladmin ping --protocol=tcp -h127.0.0.1 -P3306 -uroot -proot"]
       interval: 10s
       timeout: 5s
       retries: 15
+      start_period: 30s
 
   redis:
     image: redis:7.2
@@ -81,7 +82,7 @@ services:
       "mysql -hmysql -uroot -proot ticketing < /migrations/0001_init.sql &&
        mysql -hmysql -uroot -proot ticketing < /migrations/0002_query_readmodel.sql &&
        mysql -hmysql -uroot -proot ticketing < /migrations/0003_ticket_outbox.sql"
-    restart: "no"
+    restart: on-failure
 
   topics-init:
     image: confluentinc/cp-kafka:7.6.1
@@ -333,4 +334,3 @@ services:
 volumes:
   mysql_data:
   grafana_data:
-
