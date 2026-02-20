@@ -22,3 +22,32 @@ func NewServiceContext(c config.Config) *ServiceContext {
 		Config: c,
 	}
 }
+
+func NewServiceContext(c config.Config) *ServiceContext {
+	return &ServiceContext{
+		Config: c,
+	}
+}
+
+func NewServiceContext(c config.Config) *ServiceContext {
+	return &ServiceContext{
+		Config: c,
+	}
+}
+// goctl 1.9.2
+
+package svc
+
+import (
+	"ticketing-gozero/apps/gateway-api/internal/config"
+)
+
+type ServiceContext struct {
+	Config config.Config
+}
+
+func NewServiceContext(c config.Config) *ServiceContext {
+	return &ServiceContext{
+		Config: c,
+	}
+}

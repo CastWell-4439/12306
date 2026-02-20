@@ -6,6 +6,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     git \
     pkg-config \
     protobuf-compiler \
+    protobuf-compiler-grpc \
     libprotobuf-dev \
     libgrpc++-dev \
     libgrpc-dev \
