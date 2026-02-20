@@ -113,7 +113,7 @@ services:
       "apt-get update &&
        apt-get install -y --no-install-recommends default-mysql-client &&
        python tools/seed_stations.py &&
-       mysql --ssl-mode=DISABLED -hmysql -uroot -proot ticketing < tools/data/stations_seed.sql"
+       mysql --skip-ssl -hmysql -uroot -proot ticketing < tools/data/stations_seed.sql"
     restart: "no"
 
   seat-allocator:
