@@ -1,0 +1,22 @@
+Name: order-api
+Host: 0.0.0.0
+Port: 8081
+Timeout: 5000
+MaxConns: 500
+
+Mysql:
+  Dsn: "root:root@tcp(mysql:3306)/ticketing?parseTime=true"
+Redis:
+  Addr: "redis:6379"
+  Password: ""
+  DB: 0
+Kafka:
+  Brokers:
+    - "kafka:9092"
+
+InventoryServiceURL: "http://inventory-api:8082"
+OrderInventoryPartitionKey: "G123|2026-02-11|2nd"
+OrderInventoryDefaultQty: 1
+OrderInventoryCapacity: 500
+PaymentCallbackSignKey: ""
+

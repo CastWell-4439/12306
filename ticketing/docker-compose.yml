@@ -1,5 +1,3 @@
-version: "3.9"
-
 x-service-env: &service-env
   APP_ENV: dev
   APP_VERSION: compose

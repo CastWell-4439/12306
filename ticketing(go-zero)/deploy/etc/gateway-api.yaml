@@ -1,0 +1,16 @@
+Name: gateway-api
+Host: 0.0.0.0
+Port: 8080
+Timeout: 5000
+MaxConns: 1000
+
+Mysql:
+  Dsn: "root:root@tcp(mysql:3306)/ticketing?parseTime=true"
+Redis:
+  Addr: "redis:6379"
+  Password: ""
+  DB: 0
+Kafka:
+  Brokers:
+    - "kafka:9092"
+
