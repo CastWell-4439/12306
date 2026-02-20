@@ -1,0 +1,264 @@
+openapi: 3.0.3
+info:
+  title: Ticketing Inventory Service API
+  version: "1.0.0"
+  description: |
+    Inventory service endpoints implemented in `cmd/inventory-service`.
+servers:
+  - url: http://127.0.0.1:8082
+tags:
+  - name: health
+  - name: inventory
+paths:
+  /healthz:
+    get:
+      tags: [health]
+      summary: Liveness check
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StatusOK"
+  /readyz:
+    get:
+      tags: [health]
+      summary: Readiness check
+      responses:
+        "200":
+          description: Ready
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StatusReady"
+        "503":
+          description: Dependency not ready
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/NotReady"
+  /inventory/try-hold:
+    post:
+      tags: [inventory]
+      summary: Try create a hold
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/TryHoldRequest"
+      responses:
+        "200":
+          description: Hold success
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PartitionState"
+        "400":
+          description: Invalid payload or insufficient stock/backpressure
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
+          description: Server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+  /inventory/release-hold:
+    post:
+      tags: [inventory]
+      summary: Release hold
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ReleaseHoldRequest"
+      responses:
+        "200":
+          description: Release success
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PartitionState"
+        "400":
+          description: Invalid payload
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: Hold not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
+          description: Server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+  /inventory/confirm-hold:
+    post:
+      tags: [inventory]
+      summary: Confirm hold
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ConfirmHoldRequest"
+      responses:
+        "200":
+          description: Confirm success
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PartitionState"
+        "400":
+          description: Invalid payload
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: Hold not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
+          description: Server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+  /inventory/availability:
+    get:
+      tags: [inventory]
+      summary: Query current availability by partition key
+      parameters:
+        - in: query
+          name: partition_key
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AvailabilityResponse"
+        "400":
+          description: Missing partition key
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: Partition not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
+          description: Server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+components:
+  schemas:
+    TryHoldRequest:
+      type: object
+      required: [partition_key, hold_id, qty, capacity]
+      properties:
+        partition_key:
+          type: string
+        hold_id:
+          type: string
+        qty:
+          type: integer
+        capacity:
+          type: integer
+    ReleaseHoldRequest:
+      type: object
+      required: [partition_key, hold_id]
+      properties:
+        partition_key:
+          type: string
+        hold_id:
+          type: string
+    ConfirmHoldRequest:
+      type: object
+      required: [partition_key, hold_id]
+      properties:
+        partition_key:
+          type: string
+        hold_id:
+          type: string
+    Hold:
+      type: object
+      properties:
+        hold_id:
+          type: string
+        qty:
+          type: integer
+    PartitionState:
+      type: object
+      properties:
+        partition_key:
+          type: string
+        capacity:
+          type: integer
+        available:
+          type: integer
+        confirmed:
+          type: integer
+        last_seq:
+          type: integer
+          format: int64
+        holds:
+          type: object
+          additionalProperties:
+            $ref: "#/components/schemas/Hold"
+    AvailabilityResponse:
+      type: object
+      properties:
+        partition_key:
+          type: string
+        available:
+          type: integer
+    ErrorResponse:
+      type: object
+      properties:
+        error:
+          type: string
+    StatusOK:
+      type: object
+      properties:
+        status:
+          type: string
+          example: ok
+    StatusReady:
+      type: object
+      properties:
+        status:
+          type: string
+          example: ready
+    NotReady:
+      type: object
+      properties:
+        status:
+          type: string
+          example: not_ready
+        dependency:
+          type: string
+          example: kafka
+
+

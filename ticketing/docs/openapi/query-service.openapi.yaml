@@ -1,0 +1,122 @@
+openapi: 3.0.3
+info:
+  title: Ticketing Query Service API
+  version: "1.0.0"
+  description: |
+    Query service endpoints implemented in `cmd/query-service`.
+servers:
+  - url: http://127.0.0.1:8083
+tags:
+  - name: health
+  - name: query
+paths:
+  /healthz:
+    get:
+      tags: [health]
+      summary: Liveness check
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StatusOK"
+  /readyz:
+    get:
+      tags: [health]
+      summary: Readiness check
+      responses:
+        "200":
+          description: Ready
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StatusReady"
+        "503":
+          description: Dependency not ready
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/NotReady"
+  /query/orders:
+    get:
+      tags: [query]
+      summary: Query order read model by order_id
+      parameters:
+        - in: query
+          name: order_id
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/OrderView"
+        "400":
+          description: Missing order_id
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: Order view not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
+          description: Server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+components:
+  schemas:
+    OrderView:
+      type: object
+      properties:
+        order_id:
+          type: string
+        status:
+          type: string
+        amount_cents:
+          type: integer
+          format: int64
+        provider_txn_id:
+          type: string
+        seat_no:
+          type: string
+        updated_at:
+          type: string
+          format: date-time
+    ErrorResponse:
+      type: object
+      properties:
+        error:
+          type: string
+    StatusOK:
+      type: object
+      properties:
+        status:
+          type: string
+          example: ok
+    StatusReady:
+      type: object
+      properties:
+        status:
+          type: string
+          example: ready
+    NotReady:
+      type: object
+      properties:
+        status:
+          type: string
+          example: not_ready
+        dependency:
+          type: string
+          example: redis
+
+

@@ -1,0 +1,20 @@
+syntax = "v1"
+
+info (
+	title:   "Gateway API"
+	desc:    "Ticketing gateway health"
+	version: "1.0.0"
+)
+
+type StatusResp {
+	Status string `json:"status"`
+}
+
+service gateway-api {
+	@handler Healthz
+	get /healthz returns (StatusResp)
+
+	@handler Readyz
+	get /readyz returns (StatusResp)
+}
+

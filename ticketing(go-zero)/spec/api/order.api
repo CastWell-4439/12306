@@ -1,0 +1,63 @@
+syntax = "v1"
+
+info (
+	title:   "Order Service API"
+	desc:    "Ticketing order service"
+	version: "1.0.0"
+)
+
+type (
+	CreateOrderReq {
+		IdempotencyKey string `json:"idempotency_key"`
+		AmountCents    int64  `json:"amount_cents"`
+	}
+	ReserveOrderReq {
+		OrderID      string `json:"order_id"`
+		PartitionKey string `json:"partition_key,optional"`
+		HoldID       string `json:"hold_id,optional"`
+		Qty          int    `json:"qty,optional"`
+		Capacity     int    `json:"capacity,optional"`
+	}
+	CancelOrderReq {
+		OrderID      string `json:"order_id"`
+		PartitionKey string `json:"partition_key,optional"`
+		HoldID       string `json:"hold_id,optional"`
+	}
+	PaymentCallbackReq {
+		OrderID       string `json:"order_id"`
+		ProviderTxnID string `json:"provider_txn_id"`
+		Status        string `json:"status"`
+		PartitionKey  string `json:"partition_key,optional"`
+		HoldID        string `json:"hold_id,optional"`
+		Signature     string `json:"signature,optional"`
+	}
+	GetOrderReq {
+		OrderID string `form:"order_id"`
+	}
+	OrderResp {
+		OrderID        string `json:"OrderID"`
+		IdempotencyKey string `json:"IdempotencyKey"`
+		Status         string `json:"Status"`
+		AmountCents    int64  `json:"AmountCents"`
+		CreatedAt      string `json:"CreatedAt"`
+		UpdatedAt      string `json:"UpdatedAt"`
+	}
+)
+
+service order-api {
+	@handler CreateOrder
+	post /orders (CreateOrderReq) returns (OrderResp)
+
+	@handler ReserveOrder
+	post /orders/reserve (ReserveOrderReq) returns (OrderResp)
+
+	@handler CancelOrder
+	post /orders/cancel (CancelOrderReq) returns (OrderResp)
+
+	@handler PaymentCallback
+	post /payments/callback (PaymentCallbackReq) returns (OrderResp)
+
+	@handler GetOrder
+	get /orders/get (GetOrderReq) returns (OrderResp)
+}
+

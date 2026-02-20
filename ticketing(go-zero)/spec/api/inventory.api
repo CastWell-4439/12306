@@ -1,0 +1,53 @@
+syntax = "v1"
+
+info (
+	title:   "Inventory Service API"
+	desc:    "Ticketing inventory service"
+	version: "1.0.0"
+)
+
+type (
+	TryHoldReq {
+		PartitionKey string `json:"partition_key"`
+		HoldID       string `json:"hold_id"`
+		Qty          int    `json:"qty"`
+		Capacity     int    `json:"capacity"`
+	}
+	ReleaseHoldReq {
+		PartitionKey string `json:"partition_key"`
+		HoldID       string `json:"hold_id"`
+	}
+	ConfirmHoldReq {
+		PartitionKey string `json:"partition_key"`
+		HoldID       string `json:"hold_id"`
+	}
+	AvailabilityReq {
+		PartitionKey string `form:"partition_key"`
+	}
+	PartitionStateResp {
+		PartitionKey string `json:"partition_key"`
+		Capacity     int    `json:"capacity"`
+		Available    int    `json:"available"`
+		Confirmed    int    `json:"confirmed"`
+		LastSeq      int64  `json:"last_seq"`
+	}
+	AvailabilityResp {
+		PartitionKey string `json:"partition_key"`
+		Available    int    `json:"available"`
+	}
+)
+
+service inventory-api {
+	@handler TryHold
+	post /inventory/try-hold (TryHoldReq) returns (PartitionStateResp)
+
+	@handler ReleaseHold
+	post /inventory/release-hold (ReleaseHoldReq) returns (PartitionStateResp)
+
+	@handler ConfirmHold
+	post /inventory/confirm-hold (ConfirmHoldReq) returns (PartitionStateResp)
+
+	@handler Availability
+	get /inventory/availability (AvailabilityReq) returns (AvailabilityResp)
+}
+

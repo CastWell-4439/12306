@@ -1,0 +1,341 @@
+openapi: 3.0.3
+info:
+  title: Ticketing Order Service API
+  version: "1.0.0"
+  description: |
+    Order service endpoints implemented in `cmd/order-service`.
+    This spec is aligned with current runtime behavior.
+servers:
+  - url: http://127.0.0.1:8081
+tags:
+  - name: health
+  - name: orders
+  - name: payments
+paths:
+  /healthz:
+    get:
+      tags: [health]
+      summary: Liveness check
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StatusOK"
+  /readyz:
+    get:
+      tags: [health]
+      summary: Readiness check
+      responses:
+        "200":
+          description: Ready
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StatusReady"
+        "503":
+          description: Dependency not ready
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/NotReady"
+  /orders:
+    post:
+      tags: [orders]
+      summary: Create order (idempotent by idempotency_key)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateOrderRequest"
+      responses:
+        "200":
+          description: Order created or returned from idempotent hit
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/OrderResponse"
+        "400":
+          description: Invalid payload or amount
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
+          description: Server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+  /orders/reserve:
+    post:
+      tags: [orders]
+      summary: Reserve order (INIT -> RESERVED)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ReserveOrderRequest"
+      responses:
+        "200":
+          description: Reserved or idempotent current state
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/OrderResponse"
+        "400":
+          description: Invalid payload
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: Order not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "409":
+          description: Invalid state transition
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
+          description: Server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+  /orders/cancel:
+    post:
+      tags: [orders]
+      summary: Cancel order (INIT/RESERVED -> CANCELLED)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CancelOrderRequest"
+      responses:
+        "200":
+          description: Cancelled or idempotent current state
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/OrderResponse"
+        "400":
+          description: Invalid payload
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: Order not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "409":
+          description: Invalid state transition
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
+          description: Server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+  /payments/callback:
+    post:
+      tags: [payments]
+      summary: Payment callback (RESERVED -> PAID, idempotent by provider_txn_id)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/PaymentCallbackRequest"
+      responses:
+        "200":
+          description: Paid or idempotent current state
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/OrderResponse"
+        "400":
+          description: Invalid payload
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "401":
+          description: Invalid callback signature
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: Order not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "409":
+          description: Invalid state transition
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
+          description: Server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+  /orders/get:
+    get:
+      tags: [orders]
+      summary: Get order by order_id
+      parameters:
+        - in: query
+          name: order_id
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/OrderResponse"
+        "400":
+          description: Missing order_id
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
+          description: Server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+components:
+  schemas:
+    CreateOrderRequest:
+      type: object
+      required: [idempotency_key, amount_cents]
+      properties:
+        idempotency_key:
+          type: string
+        amount_cents:
+          type: integer
+          format: int64
+    ReserveOrderRequest:
+      type: object
+      required: [order_id]
+      properties:
+        order_id:
+          type: string
+        partition_key:
+          type: string
+          description: Optional, default from service config.
+        hold_id:
+          type: string
+          description: Optional, default to order_id.
+        qty:
+          type: integer
+          description: Optional, default from service config.
+        capacity:
+          type: integer
+          description: Optional, default from service config.
+    CancelOrderRequest:
+      type: object
+      required: [order_id]
+      properties:
+        order_id:
+          type: string
+        partition_key:
+          type: string
+        hold_id:
+          type: string
+    PaymentCallbackRequest:
+      type: object
+      required: [order_id, provider_txn_id, status]
+      properties:
+        order_id:
+          type: string
+        provider_txn_id:
+          type: string
+        status:
+          type: string
+          description: Only SUCCESS is accepted.
+        partition_key:
+          type: string
+        hold_id:
+          type: string
+        signature:
+          type: string
+          description: Optional unless PAYMENT_CALLBACK_SIGN_KEY is configured; HMAC-SHA256 hex of order_id|provider_txn_id|status.
+    OrderResponse:
+      type: object
+      description: |
+        Current runtime returns PascalCase fields from `domain.Order`.
+      properties:
+        OrderID:
+          type: string
+        IdempotencyKey:
+          type: string
+        Status:
+          type: string
+          enum: [INIT, RESERVED, PAID, TICKETED, CANCELLED]
+        AmountCents:
+          type: integer
+          format: int64
+        CreatedAt:
+          type: string
+          format: date-time
+        UpdatedAt:
+          type: string
+          format: date-time
+    ErrorResponse:
+      type: object
+      properties:
+        error:
+          type: string
+    StatusOK:
+      type: object
+      properties:
+        status:
+          type: string
+          example: ok
+    StatusReady:
+      type: object
+      properties:
+        status:
+          type: string
+          example: ready
+    NotReady:
+      type: object
+      properties:
+        status:
+          type: string
+          example: not_ready
+        dependency:
+          type: string
+          example: mysql
+
+

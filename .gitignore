@@ -1,0 +1,86 @@
+# ------------------------------
+# OS / Editor
+# ------------------------------
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# ------------------------------
+# Logs / temp
+# ------------------------------
+*.log
+*.tmp
+*.temp
+tmp/
+temp/
+
+# ------------------------------
+# Environment / secrets
+# ------------------------------
+.env
+.env.*
+!.env.example
+!.env.*.example
+
+# ------------------------------
+# Frontend (Vite / Node)
+# ------------------------------
+frontend/node_modules/
+frontend/dist/
+frontend/.vite/
+frontend/.cache/
+frontend/coverage/
+
+# ------------------------------
+# Go
+# ------------------------------
+bin/
+dist/
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+*.test
+*.out
+coverage.out
+
+# ------------------------------
+# Python
+# ------------------------------
+__pycache__/
+*.py[cod]
+*.pyo
+.pytest_cache/
+.mypy_cache/
+.venv/
+venv/
+
+# ------------------------------
+# C/C++ / CMake
+# ------------------------------
+ticketing/seat-allocator/build/
+ticketing/seat-allocator/generated/
+*.o
+*.obj
+*.a
+*.lib
+*.pdb
+
+# ------------------------------
+# Docker local volumes / artifacts
+# ------------------------------
+*.pid
+*.seed
+
+# ------------------------------
+# AI / Cursor intermediate artifacts
+# ------------------------------
+.cursor/
+CURSOR_PROMPT_CLEAN_ARCH_v3.md
+CURSOR_PROMPT_*.md
+
+

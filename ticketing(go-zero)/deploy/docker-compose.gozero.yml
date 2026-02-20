@@ -1,0 +1,118 @@
+version: "3.9"
+
+services:
+  mysql:
+    image: mysql:8.0
+    environment:
+      MYSQL_ROOT_PASSWORD: root
+      MYSQL_DATABASE: ticketing
+    ports:
+      - "3306:3306"
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  kafka:
+    image: bitnami/kafka:3.7
+    environment:
+      KAFKA_CFG_NODE_ID: 0
+      KAFKA_CFG_PROCESS_ROLES: controller,broker
+      KAFKA_CFG_CONTROLLER_QUORUM_VOTERS: 0@kafka:9093
+      KAFKA_CFG_LISTENERS: PLAINTEXT://:9092,CONTROLLER://:9093,EXTERNAL://:9094
+      KAFKA_CFG_ADVERTISED_LISTENERS: PLAINTEXT://kafka:9092,EXTERNAL://127.0.0.1:9094
+      KAFKA_CFG_LISTENER_SECURITY_PROTOCOL_MAP: PLAINTEXT:PLAINTEXT,CONTROLLER:PLAINTEXT,EXTERNAL:PLAINTEXT
+      KAFKA_CFG_CONTROLLER_LISTENER_NAMES: CONTROLLER
+      KAFKA_CFG_INTER_BROKER_LISTENER_NAME: PLAINTEXT
+      KAFKA_CFG_AUTO_CREATE_TOPICS_ENABLE: "true"
+    ports:
+      - "9094:9094"
+    healthcheck:
+      test: ["CMD-SHELL", "kafka-topics.sh --bootstrap-server localhost:9092 --list || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  gateway-api:
+    build:
+      context: ..
+      dockerfile: deploy/Dockerfile.gozero
+      args:
+        APP_PATH: apps/gateway-api
+        APP_NAME: gateway
+    ports:
+      - "8080:8080"
+    depends_on:
+      mysql: { condition: service_healthy }
+      redis: { condition: service_healthy }
+      kafka: { condition: service_healthy }
+    environment:
+      - CONFIG_FILE=/app/etc/gateway-api.yaml
+
+  order-api:
+    build:
+      context: ..
+      dockerfile: deploy/Dockerfile.gozero
+      args:
+        APP_PATH: apps/order-api
+        APP_NAME: order
+    ports:
+      - "8081:8081"
+    depends_on:
+      mysql: { condition: service_healthy }
+      redis: { condition: service_healthy }
+      kafka: { condition: service_healthy }
+
+  inventory-api:
+    build:
+      context: ..
+      dockerfile: deploy/Dockerfile.gozero
+      args:
+        APP_PATH: apps/inventory-api
+        APP_NAME: inventory
+    ports:
+      - "8082:8082"
+    depends_on:
+      mysql: { condition: service_healthy }
+      redis: { condition: service_healthy }
+      kafka: { condition: service_healthy }
+
+  query-api:
+    build:
+      context: ..
+      dockerfile: deploy/Dockerfile.gozero
+      args:
+        APP_PATH: apps/query-api
+        APP_NAME: query
+    ports:
+      - "8083:8083"
+    depends_on:
+      mysql: { condition: service_healthy }
+      redis: { condition: service_healthy }
+      kafka: { condition: service_healthy }
+
+  ticket-worker:
+    build:
+      context: ..
+      dockerfile: deploy/Dockerfile.gozero
+      args:
+        APP_PATH: apps/ticket-worker
+        APP_NAME: worker
+    ports:
+      - "8084:8084"
+    depends_on:
+      mysql: { condition: service_healthy }
+      redis: { condition: service_healthy }
+      kafka: { condition: service_healthy }
+

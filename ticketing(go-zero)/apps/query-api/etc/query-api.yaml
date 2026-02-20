@@ -1,0 +1,25 @@
+Name: query-api
+Host: 0.0.0.0
+Port: 8083
+Timeout: 5000
+MaxConns: 500
+
+Prometheus:
+  Host: 0.0.0.0
+  Port: 9083
+  Path: /metrics
+
+Telemetry:
+  Name: query-api
+  Sampler: 1.0
+  Batcher: jaeger
+
+Mysql:
+  Dsn: "root:root@tcp(127.0.0.1:3306)/ticketing?parseTime=true"
+Redis:
+  Addr: "127.0.0.1:6379"
+  Password: ""
+  DB: 0
+Kafka:
+  Brokers:
+    - "127.0.0.1:9092"

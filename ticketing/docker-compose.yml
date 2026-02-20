@@ -1,0 +1,340 @@
+version: "3.9"
+
+x-service-env: &service-env
+  APP_ENV: dev
+  APP_VERSION: compose
+  MYSQL_DSN: root:root@tcp(mysql:3306)/ticketing?parseTime=true
+  REDIS_ADDR: redis:6379
+  REDIS_PASSWORD: ""
+  REDIS_DB: "0"
+  KAFKA_BROKERS: kafka:29092
+
+services:
+  mysql:
+    image: mysql:8.4
+    container_name: ticketing-mysql
+    command: ["--default-authentication-plugin=mysql_native_password"]
+    environment:
+      MYSQL_ROOT_PASSWORD: root
+      MYSQL_DATABASE: ticketing
+    ports:
+      - "3306:3306"
+    volumes:
+      - mysql_data:/var/lib/mysql
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-proot"]
+      interval: 10s
+      timeout: 5s
+      retries: 15
+
+  redis:
+    image: redis:7.2
+    container_name: ticketing-redis
+    ports:
+      - "6379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 3s
+      retries: 15
+
+  zookeeper:
+    image: confluentinc/cp-zookeeper:7.6.1
+    container_name: ticketing-zookeeper
+    environment:
+      ZOOKEEPER_CLIENT_PORT: 2181
+      ZOOKEEPER_TICK_TIME: 2000
+    ports:
+      - "2181:2181"
+
+  kafka:
+    image: confluentinc/cp-kafka:7.6.1
+    container_name: ticketing-kafka
+    depends_on:
+      - zookeeper
+    ports:
+      - "9092:9092"
+    environment:
+      KAFKA_BROKER_ID: 1
+      KAFKA_ZOOKEEPER_CONNECT: zookeeper:2181
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: PLAINTEXT:PLAINTEXT,PLAINTEXT_HOST:PLAINTEXT
+      KAFKA_LISTENERS: PLAINTEXT://0.0.0.0:29092,PLAINTEXT_HOST://0.0.0.0:9092
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:29092,PLAINTEXT_HOST://localhost:9092
+      KAFKA_INTER_BROKER_LISTENER_NAME: PLAINTEXT
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 1
+      KAFKA_AUTO_CREATE_TOPICS_ENABLE: "true"
+    healthcheck:
+      test: ["CMD-SHELL", "kafka-topics --bootstrap-server localhost:9092 --list >/dev/null 2>&1"]
+      interval: 10s
+      timeout: 5s
+      retries: 20
+
+  migrate:
+    image: mysql:8.4
+    container_name: ticketing-migrate
+    depends_on:
+      mysql:
+        condition: service_healthy
+    volumes:
+      - ./migrations:/migrations:ro
+    entrypoint: ["/bin/sh", "-lc"]
+    command: >
+      "mysql -hmysql -uroot -proot ticketing < /migrations/0001_init.sql &&
+       mysql -hmysql -uroot -proot ticketing < /migrations/0002_query_readmodel.sql &&
+       mysql -hmysql -uroot -proot ticketing < /migrations/0003_ticket_outbox.sql"
+    restart: "no"
+
+  topics-init:
+    image: confluentinc/cp-kafka:7.6.1
+    container_name: ticketing-topics-init
+    depends_on:
+      kafka:
+        condition: service_healthy
+    entrypoint: ["/bin/sh", "-lc"]
+    command: >
+      "kafka-topics --bootstrap-server kafka:29092 --create --if-not-exists --topic order.events --partitions 3 --replication-factor 1 &&
+       kafka-topics --bootstrap-server kafka:29092 --create --if-not-exists --topic inventory.events --partitions 3 --replication-factor 1 &&
+       kafka-topics --bootstrap-server kafka:29092 --create --if-not-exists --topic ticket.events --partitions 3 --replication-factor 1"
+    restart: "no"
+
+  seed:
+    image: python:3.11-slim
+    container_name: ticketing-seed
+    depends_on:
+      mysql:
+        condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
+    working_dir: /work
+    volumes:
+      - ./:/work
+    entrypoint: ["/bin/sh", "-lc"]
+    command: >
+      "apt-get update &&
+       apt-get install -y --no-install-recommends default-mysql-client &&
+       python tools/seed_stations.py &&
+       mysql -hmysql -uroot -proot ticketing < tools/data/stations_seed.sql"
+    restart: "no"
+
+  seat-allocator:
+    build:
+      context: .
+      dockerfile: seat-allocator/Dockerfile
+    container_name: ticketing-seat-allocator
+    ports:
+      - "50051:50051"
+
+  gateway:
+    build:
+      context: .
+      dockerfile: deployments/Dockerfile.go-service
+      args:
+        SERVICE_PATH: cmd/gateway
+    container_name: ticketing-gateway
+    environment:
+      <<: *service-env
+      HTTP_PORT: "8080"
+    depends_on:
+      mysql:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      kafka:
+        condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
+      topics-init:
+        condition: service_completed_successfully
+    ports:
+      - "8080:8080"
+
+  order-service:
+    build:
+      context: .
+      dockerfile: deployments/Dockerfile.go-service
+      args:
+        SERVICE_PATH: cmd/order-service
+    container_name: ticketing-order-service
+    environment:
+      <<: *service-env
+      HTTP_PORT: "8081"
+      INVENTORY_SERVICE_URL: http://inventory-service:8082
+      ORDER_INVENTORY_PARTITION_KEY: G123|2026-02-11|2nd
+      ORDER_INVENTORY_DEFAULT_QTY: "1"
+      ORDER_INVENTORY_CAPACITY: "500"
+    depends_on:
+      mysql:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      kafka:
+        condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
+      topics-init:
+        condition: service_completed_successfully
+    ports:
+      - "8081:8081"
+
+  inventory-service:
+    build:
+      context: .
+      dockerfile: deployments/Dockerfile.go-service
+      args:
+        SERVICE_PATH: cmd/inventory-service
+    container_name: ticketing-inventory-service
+    environment:
+      <<: *service-env
+      HTTP_PORT: "8082"
+      INVENTORY_SHARD_COUNT: "32"
+      INVENTORY_WAL_BUFFER: "4096"
+      INVENTORY_SNAPSHOT_INTERVAL_SECS: "10"
+      INVENTORY_SNAPSHOT_OPS_THRESHOLD: "500"
+      INVENTORY_HOLD_TTL_SECS: "120"
+    depends_on:
+      mysql:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      kafka:
+        condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
+      topics-init:
+        condition: service_completed_successfully
+    ports:
+      - "8082:8082"
+
+  query-service:
+    build:
+      context: .
+      dockerfile: deployments/Dockerfile.go-service
+      args:
+        SERVICE_PATH: cmd/query-service
+    container_name: ticketing-query-service
+    environment:
+      <<: *service-env
+      HTTP_PORT: "8083"
+    depends_on:
+      mysql:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      kafka:
+        condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
+      topics-init:
+        condition: service_completed_successfully
+    ports:
+      - "8083:8083"
+
+  ticket-worker:
+    build:
+      context: .
+      dockerfile: deployments/Dockerfile.go-service
+      args:
+        SERVICE_PATH: cmd/ticket-worker
+    container_name: ticketing-ticket-worker
+    environment:
+      <<: *service-env
+      HTTP_PORT: "8084"
+      SEAT_ALLOCATOR_MODE: grpc
+      SEAT_ALLOCATOR_ADDR: seat-allocator:50051
+      SEAT_ALLOCATOR_TRAIN_ID: G123
+      SEAT_ALLOCATOR_TRAVEL_DATE: "2026-02-11"
+      SEAT_ALLOCATOR_COACH_TYPE: 2nd
+      SEAT_ALLOCATOR_FROM_INDEX: "1"
+      SEAT_ALLOCATOR_TO_INDEX: "3"
+    depends_on:
+      mysql:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      kafka:
+        condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
+      topics-init:
+        condition: service_completed_successfully
+      seat-allocator:
+        condition: service_started
+    ports:
+      - "8084:8084"
+
+  gateway-nginx:
+    build:
+      context: .
+      dockerfile: gateway-nginx/Dockerfile
+    container_name: ticketing-gateway-nginx
+    depends_on:
+      order-service:
+        condition: service_started
+    ports:
+      - "8088:8088"
+
+  frontend:
+    build:
+      context: ..
+      dockerfile: ticketing/deployments/Dockerfile.frontend
+    container_name: ticketing-frontend
+    depends_on:
+      gateway:
+        condition: service_started
+      order-service:
+        condition: service_started
+      inventory-service:
+        condition: service_started
+      query-service:
+        condition: service_started
+      ticket-worker:
+        condition: service_started
+      gateway-nginx:
+        condition: service_started
+    ports:
+      - "5173:80"
+
+  prometheus:
+    image: prom/prometheus:v2.54.1
+    container_name: ticketing-prometheus
+    depends_on:
+      gateway:
+        condition: service_started
+      order-service:
+        condition: service_started
+      inventory-service:
+        condition: service_started
+      query-service:
+        condition: service_started
+      ticket-worker:
+        condition: service_started
+    volumes:
+      - ./deployments/observability/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+    command:
+      - --config.file=/etc/prometheus/prometheus.yml
+      - --storage.tsdb.path=/prometheus
+      - --web.enable-lifecycle
+    ports:
+      - "9090:9090"
+
+  grafana:
+    image: grafana/grafana:11.1.5
+    container_name: ticketing-grafana
+    depends_on:
+      - prometheus
+    environment:
+      GF_SECURITY_ADMIN_USER: admin
+      GF_SECURITY_ADMIN_PASSWORD: admin
+      GF_USERS_ALLOW_SIGN_UP: "false"
+    ports:
+      - "3000:3000"
+    volumes:
+      - grafana_data:/var/lib/grafana
+
+volumes:
+  mysql_data:
+  grafana_data:
+
+

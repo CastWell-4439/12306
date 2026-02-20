@@ -1,0 +1,27 @@
+syntax = "v1"
+
+info (
+	title:   "Query Service API"
+	desc:    "Ticketing query service"
+	version: "1.0.0"
+)
+
+type (
+	GetOrderViewReq {
+		OrderID string `form:"order_id"`
+	}
+	OrderViewResp {
+		OrderID       string `json:"order_id"`
+		Status        string `json:"status"`
+		AmountCents   int64  `json:"amount_cents"`
+		ProviderTxnID string `json:"provider_txn_id,omitempty"`
+		SeatNo        string `json:"seat_no,omitempty"`
+		UpdatedAt     string `json:"updated_at"`
+	}
+)
+
+service query-api {
+	@handler GetOrderView
+	get /query/orders (GetOrderViewReq) returns (OrderViewResp)
+}
+

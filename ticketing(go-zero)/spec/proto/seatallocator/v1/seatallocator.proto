@@ -1,0 +1,23 @@
+syntax = "proto3";
+
+package seatallocator.v1;
+
+option go_package = "ticketing-gozero/spec/proto/seatallocator/v1;seatallocatorv1";
+
+service SeatAllocator {
+  rpc AllocateSeat(AllocateSeatRequest) returns (AllocateSeatResponse);
+}
+
+message AllocateSeatRequest {
+  string order_id = 1;
+  string train_id = 2;
+  string travel_date = 3;
+  string coach_type = 4;
+  uint32 from_index = 5;
+  uint32 to_index = 6;
+}
+
+message AllocateSeatResponse {
+  string seat_no = 1;
+}
+

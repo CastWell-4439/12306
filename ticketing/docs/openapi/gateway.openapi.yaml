@@ -1,0 +1,65 @@
+openapi: 3.0.3
+info:
+  title: Gateway API
+  version: "1.0.0"
+  description: |
+    Gateway service health endpoints from `internal/common/app/runtime.go`.
+    Business routes are currently handled by `gateway-nginx` in front of services.
+servers:
+  - url: http://127.0.0.1:8080
+tags:
+  - name: health
+paths:
+  /healthz:
+    get:
+      tags: [health]
+      summary: Liveness check
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StatusOK"
+  /readyz:
+    get:
+      tags: [health]
+      summary: Readiness check
+      responses:
+        "200":
+          description: Ready
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StatusReady"
+        "503":
+          description: Dependency not ready
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/NotReady"
+components:
+  schemas:
+    StatusOK:
+      type: object
+      properties:
+        status:
+          type: string
+          example: ok
+    StatusReady:
+      type: object
+      properties:
+        status:
+          type: string
+          example: ready
+    NotReady:
+      type: object
+      properties:
+        status:
+          type: string
+          example: not_ready
+        dependency:
+          type: string
+          example: mysql
+
+

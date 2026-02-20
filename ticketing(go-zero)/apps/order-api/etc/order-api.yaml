@@ -1,0 +1,33 @@
+Name: order-api
+Host: 0.0.0.0
+Port: 8081
+Timeout: 5000          # go-zero 内置请求超时 (ms)
+MaxConns: 500          # go-zero 内置最大并发连接
+
+# go-zero 内置 Prometheus 指标采集
+Prometheus:
+  Host: 0.0.0.0
+  Port: 9081
+  Path: /metrics
+
+# go-zero 内置链路追踪 (Telemetry)
+Telemetry:
+  Name: order-api
+  Sampler: 1.0
+  Batcher: jaeger       # 可选: jaeger / zipkin / otlpgrpc
+
+Mysql:
+  Dsn: "root:root@tcp(127.0.0.1:3306)/ticketing?parseTime=true"
+Redis:
+  Addr: "127.0.0.1:6379"
+  Password: ""
+  DB: 0
+Kafka:
+  Brokers:
+    - "127.0.0.1:9092"
+
+InventoryServiceURL: "http://127.0.0.1:8082"
+OrderInventoryPartitionKey: "G123|2026-02-11|2nd"
+OrderInventoryDefaultQty: 1
+OrderInventoryCapacity: 500
+PaymentCallbackSignKey: ""

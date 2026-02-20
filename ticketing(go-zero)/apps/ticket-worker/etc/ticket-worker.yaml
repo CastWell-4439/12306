@@ -1,0 +1,22 @@
+Name: ticket-worker
+Host: 0.0.0.0
+Port: 8084
+
+Mysql:
+  Dsn: "root:root@tcp(127.0.0.1:3306)/ticketing?parseTime=true"
+Redis:
+  Addr: "127.0.0.1:6379"
+  Password: ""
+  DB: 0
+Kafka:
+  Brokers:
+    - "127.0.0.1:9092"
+
+SeatAllocatorMode: "mock"
+SeatAllocatorAddr: "127.0.0.1:50051"
+SeatAllocatorTrainID: "G123"
+SeatAllocatorTravelDate: "2026-02-11"
+SeatAllocatorCoachType: "2nd"
+SeatAllocatorFromIndex: 1
+SeatAllocatorToIndex: 3
+
