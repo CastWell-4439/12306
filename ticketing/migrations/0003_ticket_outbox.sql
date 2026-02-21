@@ -15,3 +15,4 @@ CREATE TABLE IF NOT EXISTS ticket_outbox (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 
+

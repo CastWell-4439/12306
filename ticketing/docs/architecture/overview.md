@@ -34,3 +34,4 @@ flowchart LR
 - Ticket events are produced from `ticket_outbox` to guarantee eventual delivery.
 
 
+

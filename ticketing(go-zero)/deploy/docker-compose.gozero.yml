@@ -116,3 +116,4 @@ services:
       redis: { condition: service_healthy }
       kafka: { condition: service_healthy }
 
+

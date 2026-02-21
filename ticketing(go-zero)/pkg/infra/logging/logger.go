@@ -30,3 +30,4 @@ func WithContext(ctx context.Context, logger *slog.Logger) *slog.Logger {
 	return logger.With("trace_id", traceID, "req_id", reqID)
 }
 
+

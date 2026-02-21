@@ -70,3 +70,4 @@ func (r *Repository) LoadAll(ctx context.Context) ([]partition.MutationRecord, e
 	return out, rows.Err()
 }
 
+

@@ -36,3 +36,4 @@ type TryHoldReq struct {
 	Qty          int    `json:"qty"`
 	Capacity     int    `json:"capacity"`
 }
+

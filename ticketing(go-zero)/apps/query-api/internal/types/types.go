@@ -15,3 +15,4 @@ type OrderViewResp struct {
 	SeatNo        string `json:"seat_no,omitempty"`
 	UpdatedAt     string `json:"updated_at"`
 }
+

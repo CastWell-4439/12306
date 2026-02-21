@@ -36,3 +36,4 @@ func (p *Publisher) Publish(ctx context.Context, ev outbox.Event) error {
 	return p.producer.Publish(ctx, p.topic, []byte(ev.AggregateID), raw)
 }
 
+

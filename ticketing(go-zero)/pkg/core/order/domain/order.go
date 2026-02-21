@@ -73,3 +73,4 @@ func (o *Order) Cancel() error {
 	o.Status = StatusCancelled
 	return nil
 }
+

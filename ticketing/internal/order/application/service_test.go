@@ -46,3 +46,4 @@ func TestPaymentCallback_StatusWhitelist(t *testing.T) {
 		t.Fatalf("expected ErrInvalidPaymentStatus, got: %v", err)
 	}
 }
+

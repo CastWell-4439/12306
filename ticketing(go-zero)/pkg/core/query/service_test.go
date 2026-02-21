@@ -89,3 +89,4 @@ func TestConsumeOnce_SuccessCommitsOffset(t *testing.T) {
 	}
 }
 
+

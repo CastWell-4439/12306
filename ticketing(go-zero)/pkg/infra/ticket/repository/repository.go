@@ -59,3 +59,4 @@ func (r *Repository) MarkOrderTicketedTx(ctx context.Context, tx *sql.Tx, orderI
 	return err
 }
 
+

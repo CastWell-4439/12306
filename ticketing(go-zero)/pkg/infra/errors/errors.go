@@ -6,3 +6,4 @@ var (
 	ErrDependencyUnavailable = errors.New("dependency unavailable")
 )
 
+

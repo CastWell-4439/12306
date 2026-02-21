@@ -153,3 +153,4 @@ func (r *Repository) RebuildFromOrders(ctx context.Context, limit int) error {
 	return rows.Err()
 }
 
+

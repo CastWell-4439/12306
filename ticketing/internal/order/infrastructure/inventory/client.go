@@ -98,3 +98,4 @@ func extractErrorMessage(body []byte) string {
 	msg, _ := payload["error"].(string)
 	return msg
 }
+

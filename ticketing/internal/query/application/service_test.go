@@ -88,3 +88,4 @@ func TestConsumeOnce_SuccessCommitsOffset(t *testing.T) {
 		t.Fatalf("expected one commit on success, got %d", consumer.commitCalls)
 	}
 }
+

@@ -75,3 +75,4 @@ func (r *Repository) LoadAll(ctx context.Context) ([]Record, error) {
 	return out, rows.Err()
 }
 
+

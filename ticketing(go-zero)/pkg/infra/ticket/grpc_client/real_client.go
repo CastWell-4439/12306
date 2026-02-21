@@ -64,3 +64,4 @@ func (c *GRPCSeatAllocator) Close() error {
 	return c.conn.Close()
 }
 
+

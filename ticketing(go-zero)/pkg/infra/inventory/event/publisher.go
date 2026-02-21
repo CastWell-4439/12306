@@ -38,3 +38,4 @@ func (p *Publisher) PublishMutation(ctx context.Context, record partition.Mutati
 	return p.producer.Publish(ctx, p.topic, []byte(record.PartitionKey), raw)
 }
 
+

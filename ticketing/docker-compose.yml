@@ -108,11 +108,12 @@ services:
     working_dir: /work
     volumes:
       - ./:/work
+      - ../:/workspace-root:ro
     entrypoint: ["/bin/sh", "-lc"]
     command: >
       "apt-get update &&
        apt-get install -y --no-install-recommends default-mysql-client &&
-       python tools/seed_stations.py &&
+       python tools/seed_stations.py --input /workspace-root/China-rail-way-stations-data-main/src/station.csv &&
        mysql --skip-ssl -hmysql -uroot -proot ticketing < tools/data/stations_seed.sql"
     restart: "no"
 

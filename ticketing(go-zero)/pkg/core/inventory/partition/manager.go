@@ -425,3 +425,4 @@ func StringFromPayload(payload map[string]any, key string) string {
 	v, _ := raw.(string)
 	return v
 }
+

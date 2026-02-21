@@ -43,3 +43,4 @@ type ReserveOrderReq struct {
 	Qty          int    `json:"qty,optional"`
 	Capacity     int    `json:"capacity,optional"`
 }
+

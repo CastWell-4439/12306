@@ -49,3 +49,4 @@ health:
 	@echo "query-api         -> http://127.0.0.1:8083/healthz"
 	@echo "ticket-worker     -> http://127.0.0.1:8084/healthz"
 
+

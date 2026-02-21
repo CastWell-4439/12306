@@ -26,3 +26,4 @@ type Config struct {
 	SeatAllocatorToIndex    int    `json:",default=3"`
 }
 
+

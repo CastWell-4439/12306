@@ -24,3 +24,4 @@ func HealthCheck(ctx context.Context, client *redis.Client) error {
 	return client.Ping(ctx).Err()
 }
 
+
